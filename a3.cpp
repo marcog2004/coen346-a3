@@ -10,10 +10,10 @@ using namespace std;
 class Process { // process class
     public: // public variables
         string processID; // associated process number (according to user)
-        int startTime; // time when process is ready to execute
-        int duration; // duration of process execution
+        double startTime; // time when process is ready to execute
+        double duration; // duration of process execution
 
-        Process(string iprocessID, int istartTime, int iduration) : processID(iprocessID), startTime(istartTime), duration(iduration) {};
+        Process(string iprocessID, double istartTime, double iduration) : processID(iprocessID), startTime(istartTime), duration(iduration) {};
 };
 class VirtualMemoryManager{
     public:
@@ -112,8 +112,8 @@ int main(){
 
     // Extract all processes from Processes file
     int processID;
-    int startTime;
-    int duration;
+    double startTime;
+    double duration;
     vector<Process> processes; // vector of processes
     for (int i = 0; i < N; i++) {
         processesFile >> startTime >> duration; // Read process data
