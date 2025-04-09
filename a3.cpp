@@ -1,4 +1,6 @@
 // Marco Greco 40285114
+// Julian Valencia 40244362
+// Talal Hammami 40273059
 
 #include <iostream>
 #include <vector>
@@ -7,6 +9,7 @@
 #include <mutex>
 #include <map>
 #include <thread>
+#include <random>
 
 using namespace std;
 
@@ -20,14 +23,17 @@ class Process { // process class
 };
 
 double clk = 0; //global clock
+int sharedCommandIndex = 0;
+mutex commandIndexMtx;
 mutex clkMtx; //mutex for the clock
+mutex logMtx; //mutex for log times
 ofstream output("output.txt");
 
 void clockThread(){
     while(true){
-        this_thread::sleep_for(chrono::milliseconds(10));
+        this_thread::sleep_for(chrono::milliseconds(1));
         lock_guard<mutex> lock(clkMtx);
-        clk++;
+        clk += 10;
     }
 }
 
@@ -94,8 +100,12 @@ class VirtualMemoryManager{
                         index = i;
                     }
                 }
-                output << "Clock: " << clk << ", " << "swapped variable " << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
-                cout << "Clock: " << clk << ", " << "swapped variable " << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
+                 output << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
+                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
+    
+                cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
+                << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
+
                 disk[mainMemory[index].variableID] = mainMemory[index];
                 mainMemory[index] = diskPage; //swaps in page from disk
                 mainMemory[index].lastTimeAccessed = clk; //updates time
@@ -109,7 +119,7 @@ class VirtualMemoryManager{
 
 class Command {
     public:
-        virtual void execute(VirtualMemoryManager vmm, Process process) = 0;
+        virtual void execute(VirtualMemoryManager& vmm, Process process) = 0;
         //virtual ~Command() {}
 
 };
@@ -119,7 +129,7 @@ class StoreCommand : public Command {
         string value;
     public:
         StoreCommand(string ivariableID, string ivalue) : variableID(ivariableID), value(ivalue) {}
-        void execute(VirtualMemoryManager vmm, Process process) override {
+        void execute(VirtualMemoryManager& vmm, Process process) override {
             vmm.store(variableID, value);
         }
         string getVariableID() const { return variableID; }
@@ -130,7 +140,7 @@ class ReleaseCommand : public Command {
         string variableID;
     public:
         ReleaseCommand(string ivariableID) : variableID(ivariableID) {}
-        void execute(VirtualMemoryManager vmm, Process process) override {
+        void execute(VirtualMemoryManager& vmm, Process process) override {
             vmm.release(variableID);
         }
         string getVariableID() const { return variableID; }
@@ -140,7 +150,7 @@ class LookupCommand : public Command {
         string variableID;
     public:
         LookupCommand(string ivariableID) : variableID(ivariableID) {}
-        void execute(VirtualMemoryManager vmm, Process process) override {
+        void execute(VirtualMemoryManager& vmm, Process process) override {
             vmm.lookup(variableID);
         }
         string getVariableID() const { return variableID; }
@@ -162,6 +172,124 @@ void describeCommand(Command* command) {
     }
 }
 
+void runProcess(VirtualMemoryManager& vmm, Process process, vector<Command*>& commands) {
+    default_random_engine generator(random_device{}());
+    uniform_int_distribution<int> distribution(1, 1000); //we want a value between 1 and 1000
+
+    // wait until process start time
+    while (true) {
+        {
+            lock_guard<mutex> clkLock(clkMtx);
+            if (clk >= process.startTime) break;
+        }
+        this_thread::sleep_for(chrono::milliseconds(1));
+    }
+
+    {
+        lock_guard<mutex> logLock(logMtx);
+        lock_guard<mutex> clkLock(clkMtx);
+        output << "Clock: " << clk << ", Process " << process.processID << ": Started." << endl;
+        cout << "Clock: " << clk << ", Process " << process.processID << ": Started." << endl;
+    }
+
+    double endTime = process.startTime + process.duration;
+
+    while (true) {
+        {
+            lock_guard<mutex> clkLock(clkMtx);
+            if (clk >= endTime) break;
+        }
+
+        // next command is picked based on the sharedCommandIndex
+        int commandIndex;
+        {
+            lock_guard<mutex> lock(commandIndexMtx);
+            commandIndex = sharedCommandIndex;
+            sharedCommandIndex = (sharedCommandIndex + 1) % commands.size();
+        }
+
+        Command* cmd = commands[commandIndex];
+
+        // log every command called
+        if (auto store = dynamic_cast<StoreCommand*>(cmd)) {
+            {
+                lock_guard<mutex> logLock(logMtx);
+                lock_guard<mutex> clkLock(clkMtx);
+                output << "Clock: " << clk << ", Process " << process.processID
+                    << ", Store: Variable " << store->getVariableID()
+                    << ", Value: " << store->getValue() << endl;
+                cout << "Clock: " << clk << ", Process " << process.processID
+                    << ", Store: Variable " << store->getVariableID()
+                    << ", Value: " << store->getValue() << endl;
+            }
+        }
+        else if (auto release = dynamic_cast<ReleaseCommand*>(cmd)) {
+            {
+                lock_guard<mutex> logLock(logMtx);
+                lock_guard<mutex> clkLock(clkMtx);
+                output << "Clock: " << clk << ", Process " << process.processID
+                    << ", Release: Variable " << release->getVariableID() << endl;
+                cout << "Clock: " << clk << ", Process " << process.processID
+                    << ", Release: Variable " << release->getVariableID() << endl;
+            }
+        }
+        else if (auto lookup = dynamic_cast<LookupCommand*>(cmd)) {
+            string result = vmm.lookup(lookup->getVariableID());
+            {
+                lock_guard<mutex> logLock(logMtx);
+                lock_guard<mutex> clkLock(clkMtx);
+                output << "Clock: " << clk << ", Process " << process.processID
+                    << ", Lookup: Variable " << lookup->getVariableID()
+                    << ", Value: " << result << endl;
+                cout << "Clock: " << clk << ", Process " << process.processID
+                    << ", Lookup: Variable " << lookup->getVariableID()
+                    << ", Value: " << result << endl;
+            }
+            int delay = distribution(generator);
+
+            double currentClk;
+            {
+                lock_guard<mutex> clkLock(clkMtx);
+                currentClk = clk;
+            }
+
+            double timeLeft = process.startTime + process.duration - currentClk;
+
+            if (delay > timeLeft)
+            delay = static_cast<int>(timeLeft);
+
+            if (delay > 0)
+                this_thread::sleep_for(chrono::milliseconds(delay));
+                continue;
+        }
+
+        cmd->execute(vmm, process);
+
+        // generates a value between 1 to 1000 to simulate waiting command times (API Calls)
+        int delay = distribution(generator);
+
+        double currentClk;
+        {
+            lock_guard<mutex> clkLock(clkMtx);
+            currentClk = clk;
+        }
+
+        double timeLeft = process.startTime + process.duration - currentClk;
+
+        if (delay > timeLeft)
+            delay = static_cast<int>(timeLeft);
+
+        if (delay > 0)
+            this_thread::sleep_for(chrono::milliseconds(delay));
+    }
+
+    {
+        lock_guard<mutex> logLock(logMtx);
+        lock_guard<mutex> clkLock(clkMtx);
+        output << "Clock: " << clk << ", Process " << process.processID << ": Finished." << endl;
+        cout << "Clock: " << clk << ", Process " << process.processID << ": Finished." << endl;
+    }
+}
 
 int main(){
 
@@ -249,6 +377,61 @@ int main(){
         describeCommand(cmd);
         cout << endl;
     }
+
+    VirtualMemoryManager vmm(pages);
+    thread clkThread(clockThread);
+
+    // FIFO scheduling, sort by arrival time (first come first serve)
+    sort(processes.begin(), processes.end(), [](const Process& a, const Process& b) {
+        return a.startTime < b.startTime;
+        });
+
+    int cores = C;
+    mutex coreMtx;
+    condition_variable coreCv;
+
+    vector<thread> threads;
+
+    for (auto& process : processes) {
+        threads.emplace_back([&vmm, &commands, &process, &cores, &coreMtx, &coreCv]() {
+            // if the start time has not been reached, make the thread sleep
+            while (true) {
+                double currentClk;
+                {
+                    lock_guard<mutex> clkLock(clkMtx);
+                    currentClk = clk;
+                }
+                if (currentClk >= process.startTime)
+                    break;
+
+                this_thread::sleep_for(chrono::milliseconds(1));
+            }
+
+            {
+                unique_lock<mutex> lock(coreMtx);
+                coreCv.wait(lock, [&]() { return cores > 0; }); //check if available cores > 0, if not then sleep
+                cores--;  // occupy a core
+            }
+
+            // run process after all checks are made
+            runProcess(vmm, process, commands);
+
+            // when process finishes, we can free up a space in the core
+            {
+                lock_guard<mutex> lock(coreMtx);
+                cores++;
+            }
+            coreCv.notify_one();  // notify waiting threads
+            });
+    }
+
+    // all process need to finish
+    for (auto& t : threads) {
+        if (t.joinable())
+            t.join();
+    }
+
+    clkThread.detach();
 
     /*for (auto cmd : commands) {
         delete cmd;
