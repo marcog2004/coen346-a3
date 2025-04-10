@@ -118,7 +118,7 @@ public:
     }
 
 private:
-    void write(string variableID, string value){
+    void write(string variableID, string value){ //writes to file
         ifstream inFile("vm.txt");
         vector<pair<string, string>> diskData;
         string id, val;
@@ -140,7 +140,7 @@ private:
         }
     }
 
-    string read(const string& variableID){
+    string read(const string& variableID){ //reads from file
         ifstream inFile("vm.txt");
         string id, val;
         while (inFile >> id>> val){
@@ -153,7 +153,7 @@ private:
         return "-1";
     }
 
-    void removeFromDisk(const string& variableID){
+    void removeFromDisk(const string& variableID){ //removes from file
         ifstream inFile("vm.txt");
         vector<pair<string, string>> diskData;
         string id, val;
