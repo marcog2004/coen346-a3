@@ -1,0 +1,36 @@
+Clock: 1000, Process 2: Started.
+Clock: 1000, Process 2, Store: Variable 1, Value: 5
+Clock: 1070, Process 2, Store: Variable 2, Value: 3
+Clock: 1660, Process 2, Store: Variable 3, Value: 7
+Clock: 1980, Process 2, Lookup: Variable 3, Value: 7
+Clock: 2010, Process 1: Started.
+Clock: 2010, Process 1, Lookup: Variable 2, Value: 3
+Clock: 2210, Process 1, Release: Variable 1
+Clock: 2440, Process 2, Store: Variable 1, Value: 8
+Clock: 2760, Process 1, Lookup: Variable 1, Value: 8
+Clock: 2790, Process 2, Store: Variable 1, Value: 5
+Clock: 2930, Process 2, Store: Variable 2, Value: 3
+Clock: 2980, Process 2, Store: Variable 3, Value: 7
+Clock: 3000, Process 2: Finished.
+Clock: 3120, Process 1, Lookup: Variable 3, Value: 7
+Clock: 3610, Process 1, Lookup: Variable 2, Value: 3
+Clock: 3810, Process 1, Release: Variable 1
+Clock: 4000, Process 3: Started.
+Clock: 4000, Process 3, Store: Variable 1, Value: 8
+Clock: 4330, Process 1, Lookup: Variable 1, Value: 8
+Clock: 4420, Process 3, Store: Variable 1, Value: 5
+Clock: 4770, Process 1, Store: Variable 2, Value: 3
+Clock: 4850, Process 3, Store: Variable 3, Value: 7
+Clock: 4910, Process 1, Lookup: Variable 3, Value: 7
+Clock: 4980, Process 1, Lookup: Variable 2, Value: 3
+Clock: 5000, Process 1: Finished.
+Clock: 5050, Process 3, Release: Variable 1
+Clock: 5600, Process 3, Store: Variable 1, Value: 8
+Clock: 5680, Process 3, Lookup: Variable 1, Value: 8
+Clock: 5930, Process 3, Store: Variable 1, Value: 5
+Clock: 5990, Process 3, Store: Variable 2, Value: 3
+Clock: 6590, Process 3, Store: Variable 3, Value: 7
+Clock: 6860, Process 3, Lookup: Variable 3, Value: 7
+Clock: 6970, Process 3, Lookup: Variable 2, Value: 3
+Clock: 6990, Process 3, Release: Variable 1
+Clock: 7000, Process 3: Finished.
