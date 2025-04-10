@@ -14,12 +14,12 @@
 using namespace std;
 
 class Process { // process class
-    public: // public variables
-        string processID; // associated process number (according to user)
-        double startTime; // time when process is ready to execute
-        double duration; // duration of process execution
+public: // public variables
+    string processID; // associated process number (according to user)
+    double startTime; // time when process is ready to execute
+    double duration; // duration of process execution
 
-        Process(string iprocessID, double istartTime, double iduration) : processID(iprocessID), startTime(istartTime), duration(iduration) {};
+    Process(string iprocessID, double istartTime, double iduration) : processID(iprocessID), startTime(istartTime), duration(iduration) {}; // constructor
 };
 
 double clk = 0; //global clock
@@ -29,8 +29,8 @@ mutex clkMtx; //mutex for the clock
 mutex logMtx; //mutex for log times
 ofstream output("output.txt");
 
-void clockThread(){
-    while(true){
+void clockThread() {
+    while (true) {
         this_thread::sleep_for(chrono::milliseconds(1));
         lock_guard<mutex> lock(clkMtx);
         clk += 10;
@@ -44,130 +44,131 @@ struct Page { //struct for memory slots, each page is a slot
     bool empty = true;
 };
 
-class VirtualMemoryManager{
+class VirtualMemoryManager {
     int mainMemorySize; //max number of pages
     vector<Page> mainMemory; //memory block
     map<string, Page> disk; //disk storage
     mutex memoryMutex; //synchronize memory
 
-    public:
-        VirtualMemoryManager(int size) : mainMemorySize(size), mainMemory(size){}
-        void store(string variableID, string value){
-            lock_guard<mutex> lock(memoryMutex); //lock mutex
-            for(auto& page : mainMemory){ //if page exists in memory, update its value and access time
-                if (!page.empty && page.variableID == variableID){
-                    page.value = value;
-                    page.lastTimeAccessed = clk;
-                    return;
-                }
+public:
+    VirtualMemoryManager(int size) : mainMemorySize(size), mainMemory(size) {}
+    void store(string variableID, string value) {
+        lock_guard<mutex> lock(memoryMutex); //lock mutex
+        for (auto& page : mainMemory) { //if page exists in memory, update its value and access time
+            if (!page.empty && page.variableID == variableID) {
+                page.value = value;
+                page.lastTimeAccessed = clk;
+                return;
             }
-            for (auto& page : mainMemory){ //if page is empty, store new page there
-                if (page.empty){
-                    page = {variableID, value, clk, false};
-                    return;
-                }
+        }
+        for (auto& page : mainMemory) { //if page is empty, store new page there
+            if (page.empty) {
+                page = { variableID, value, clk, false };
+                return;
             }
-            disk[variableID] = {variableID, value, clk, false}; //store page in disk if memory is full
+        }
+        disk[variableID] = { variableID, value, clk, false }; //store page in disk if memory is full
+    }
+
+    void release(string variableID) {
+        lock_guard<mutex> lock(memoryMutex);
+        for (auto& page : mainMemory) { //search mainMemory and disk for ID
+            if (!page.empty && page.variableID == variableID) {
+                page = Page(); //clears the page in memory
+                return;
+            }
+        }
+        disk.erase(variableID); //erases it from memory
+    }
+
+    string lookup(string variableID) {
+        lock_guard<mutex> lock(memoryMutex);
+        for (auto& page : mainMemory) { //check mainMemory for page and update last accessed time and returns value
+            if (!page.empty && page.variableID == variableID) {
+                page.lastTimeAccessed = clk;
+                return page.value;
+            }
         }
 
-        void release(string variableID){
-            lock_guard<mutex> lock(memoryMutex);
-            for (auto& page : mainMemory){ //search mainMemory and disk for ID
-                if (!page.empty && page.variableID == variableID){
-                    page = Page(); //clears the page in memory
-                    return;
+        if (disk.find(variableID) != disk.end()) { //checks disk if not found in memory
+            Page diskPage = disk[variableID];
+            int index = 0;
+            double earliestTime = clk;
+            for (int i = 0; i < mainMemorySize; ++i) {  //chooses page in memory
+                if (mainMemory[i].lastTimeAccessed < earliestTime) {
+                    earliestTime = mainMemory[i].lastTimeAccessed;
+                    index = i;
                 }
             }
-            disk.erase(variableID); //erases it from memory
-        }
-
-        string lookup(string variableID){
-            lock_guard<mutex> lock(memoryMutex);
-            for (auto& page : mainMemory){ //check mainMemory for page and update last accessed time and returns value
-                if (!page.empty && page.variableID == variableID){
-                    page.lastTimeAccessed = clk;
-                    return page.value;
-                }
-            }
-
-            if (disk.find(variableID) != disk.end()){ //checks disk if not found in memory
-                Page diskPage = disk[variableID];
-                int index = 0;
-                double earliestTime = clk;
-                for (int i = 0; i < mainMemorySize; ++i){  //chooses page in memory
-                    if (mainMemory[i].lastTimeAccessed < earliestTime){
-                        earliestTime = mainMemory[i].lastTimeAccessed;
-                        index = i;
-                    }
-                }
-                 output << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
-                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
-    
-                cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
+            output << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
 
-                disk[mainMemory[index].variableID] = mainMemory[index];
-                mainMemory[index] = diskPage; //swaps in page from disk
-                mainMemory[index].lastTimeAccessed = clk; //updates time
-                disk.erase(variableID);
-                return mainMemory[index].value; //returns value
-            }
-            return "-1"; //not found
+            cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
+                << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
+
+            disk[mainMemory[index].variableID] = mainMemory[index];
+            mainMemory[index] = diskPage; //swaps in page from disk
+            mainMemory[index].lastTimeAccessed = clk; //updates time
+            disk.erase(variableID);
+            return mainMemory[index].value; //returns value
         }
-        
-};
-
-class Command {
-    public:
-        virtual void execute(VirtualMemoryManager& vmm, Process process) = 0;
-        //virtual ~Command() {}
+        return "-1"; //not found
+    }
 
 };
 
-class StoreCommand : public Command {
-        string variableID;
-        string value;
-    public:
-        StoreCommand(string ivariableID, string ivalue) : variableID(ivariableID), value(ivalue) {}
-        void execute(VirtualMemoryManager& vmm, Process process) override {
-            vmm.store(variableID, value);
-        }
-        string getVariableID() const { return variableID; }
-        string getValue() const { return value; }
+class Command { // command abstract class
+public:
+    virtual void execute(VirtualMemoryManager& vmm, Process process) = 0;
 };
 
-class ReleaseCommand : public Command {
-        string variableID;
-    public:
-        ReleaseCommand(string ivariableID) : variableID(ivariableID) {}
-        void execute(VirtualMemoryManager& vmm, Process process) override {
-            vmm.release(variableID);
-        }
-        string getVariableID() const { return variableID; }
+class StoreCommand : public Command { // subclass of command
+    string variableID; //variable id string
+    string value; // value string
+public:
+    StoreCommand(string ivariableID, string ivalue) : variableID(ivariableID), value(ivalue) {} // constructor
+    void execute(VirtualMemoryManager& vmm, Process process) override { // execute command runs the vmm function for store command
+        vmm.store(variableID, value);
+    }
+    string getVariableID() const { return variableID; } // id getter
+    string getValue() const { return value; } // value getter
 };
 
-class LookupCommand : public Command {
-        string variableID;
-    public:
-        LookupCommand(string ivariableID) : variableID(ivariableID) {}
-        void execute(VirtualMemoryManager& vmm, Process process) override {
-            vmm.lookup(variableID);
-        }
-        string getVariableID() const { return variableID; }
+class ReleaseCommand : public Command { // subclass of command
+    string variableID; // variable id string
+public:
+    ReleaseCommand(string ivariableID) : variableID(ivariableID) {} // constructor
+    void execute(VirtualMemoryManager& vmm, Process process) override { // execute command runs the vmm function for release
+        vmm.release(variableID);
+    }
+    string getVariableID() const { return variableID; } // id getter
 };
 
-void describeCommand(Command* command) {
-    if (auto store = dynamic_cast<StoreCommand*>(command)) {
+class LookupCommand : public Command { // subclass of command
+    string variableID; //variable id string
+public:
+    LookupCommand(string ivariableID) : variableID(ivariableID) {} // constructor
+    void execute(VirtualMemoryManager& vmm, Process process) override { // execute command runs the vmm function for lookup
+        vmm.lookup(variableID);
+    }
+    string getVariableID() const { return variableID; } // id getter
+};
+
+void describeCommand(Command* command) { // function to output all commands and their characteristics
+    if (auto store = dynamic_cast<StoreCommand*>(command)) { // if command is a store command
         cout << "Command Type: Store" << endl;
         cout << "Variable ID: " << store->getVariableID() << endl;
         cout << "Value: " << store->getValue() << endl;
-    } else if (auto release = dynamic_cast<ReleaseCommand*>(command)) {
+    }
+    else if (auto release = dynamic_cast<ReleaseCommand*>(command)) { // if command is release command
         cout << "Command Type: Release" << endl;
         cout << "Variable ID: " << release->getVariableID() << endl;
-    } else if (auto lookup = dynamic_cast<LookupCommand*>(command)) {
+    }
+    else if (auto lookup = dynamic_cast<LookupCommand*>(command)) { // if command is lookup
         cout << "Command Type: Lookup" << endl;
         cout << "Variable ID: " << lookup->getVariableID() << endl;
-    } else {
+    }
+    else { // check for unknown command (error)
         cout << "Unknown command type." << endl;
     }
 }
@@ -256,11 +257,11 @@ void runProcess(VirtualMemoryManager& vmm, Process process, vector<Command*>& co
             double timeLeft = process.startTime + process.duration - currentClk;
 
             if (delay > timeLeft)
-            delay = static_cast<int>(timeLeft);
+                delay = static_cast<int>(timeLeft);
 
             if (delay > 0)
                 this_thread::sleep_for(chrono::milliseconds(delay));
-                continue;
+            continue;
         }
 
         cmd->execute(vmm, process);
@@ -291,11 +292,11 @@ void runProcess(VirtualMemoryManager& vmm, Process process, vector<Command*>& co
     }
 }
 
-int main(){
+int main() {
 
     // Open memconfig file
     ifstream memconfigFile("memconfig.txt");
-    if(!memconfigFile){
+    if (!memconfigFile) {
         cout << "Error opening file" << endl;
         return 1;
     }
@@ -309,7 +310,7 @@ int main(){
 
     // Open processes file
     ifstream processesFile("processes.txt");
-    if(!processesFile){
+    if (!processesFile) {
         cout << "Error opening file" << endl;
         return 1;
     }
@@ -330,14 +331,14 @@ int main(){
     vector<Process> processes; // vector of processes
     for (int i = 0; i < N; i++) {
         processesFile >> startTime >> duration; // Read process data
-        Process p(to_string(i+1), startTime, duration); // Create process object
+        Process p(to_string(i + 1), startTime*1000, duration*1000); // Create process object
         processes.push_back(p); // Add process to vector
     }
 
-    processesFile.close();
+    processesFile.close(); // close processes file
 
     // Output processes with their data
-    for (int i = 0; i < N; i++){
+    for (int i = 0; i < N; i++) {
         cout << "Process ID: " << processes[i].processID << endl;
         cout << "Start Time: " << processes[i].startTime << endl;
         cout << "Duration: " << processes[i].duration << endl;
@@ -346,7 +347,7 @@ int main(){
 
     // Open commands file
     ifstream commandsFile("commands.txt");
-    if(!commandsFile){
+    if (!commandsFile) {
         cout << "Error opening file" << endl;
         return 1;
     }
@@ -355,25 +356,28 @@ int main(){
     string variableID;
     string value;
 
-    vector<Command*> commands;
+    vector<Command*> commands; // vector of all commands (including all 3 types)
 
-    while (commandsFile >> commandType){
-        if (commandType == "Store"){
+    while (commandsFile >> commandType) { // read through commands file
+        if (commandType == "Store") { // if type is store, run appropriate contructor and add to vector
             commandsFile >> variableID >> value;
             commands.push_back(new StoreCommand(variableID, value)); // Create a new StoreCommand object and add it to the vector
-        }else if (commandType == "Lookup"){
+        }
+        else if (commandType == "Lookup") { // if type is lookup, run appropriate contructor and add to vector
             commandsFile >> variableID;
             commands.push_back(new LookupCommand(variableID));
-        }else if (commandType == "Release"){
+        }
+        else if (commandType == "Release") { // if type is release, run appropriate contructor and add to vector
             commandsFile >> variableID;
             ReleaseCommand releaseCommand(variableID);
             commands.push_back(new ReleaseCommand(variableID)); // Create a new ReleaseCommand object and add it to the vector
-        }else{
+        } 
+        else { // handle error in case of unknown command
             cout << "Unknown command: " << commandType << endl;
         }
     }
 
-    for (auto cmd : commands) {
+    for (auto cmd : commands) { // describe each command individually
         describeCommand(cmd);
         cout << endl;
     }
@@ -432,8 +436,4 @@ int main(){
     }
 
     clkThread.detach();
-
-    /*for (auto cmd : commands) {
-        delete cmd;
-    }*/
 }
