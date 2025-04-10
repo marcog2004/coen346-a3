@@ -53,7 +53,10 @@ class VirtualMemoryManager {
     mutex memoryMutex; //synchronize memory
 
 public:
-    VirtualMemoryManager(int size) : mainMemorySize(size), mainMemory(size) {}
+    VirtualMemoryManager(int size) : mainMemorySize(size), mainMemory(size) {
+        ofstream diskFile("vm.txt", ios:: trunc);
+    }
+
     void store(string variableID, string value) {
         lock_guard<mutex> lock(memoryMutex); //lock mutex
         for (auto& page : mainMemory) { //if page exists in memory, update its value and access time
@@ -70,6 +73,7 @@ public:
             }
         }
         disk[variableID] = { variableID, value, clk, false }; //store page in disk if memory is full
+        write(variableID, value);
     }
 
     void release(string variableID) {
@@ -81,6 +85,7 @@ public:
             }
         }
         disk.erase(variableID); //erases it from memory
+        remove(variableID);
     }
 
     string lookup(string variableID) {
@@ -92,7 +97,8 @@ public:
             }
         }
 
-        if (disk.find(variableID) != disk.end()) { //checks disk if not found in memory
+        string diskValue = read(variableID);
+        if (diskValue != "-1") { //checks disk if not found in memory
             Page diskPage = disk[variableID];
             int index = 0;
             double earliestTime = clk;
@@ -108,11 +114,10 @@ public:
             cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
 
-            disk[mainMemory[index].variableID] = mainMemory[index];
-            mainMemory[index] = diskPage; //swaps in page from disk
-            mainMemory[index].lastTimeAccessed = clk; //updates time
-            disk.erase(variableID);
-            return mainMemory[index].value; //returns value
+                write(mainMemory[index].variableID, mainMemory[index].value);
+                mainMemory[index] = { variableID, diskValue, clk, false };
+                remove(variableID);
+                return diskValue;
         }
         return "-1"; //not found
     }
@@ -153,7 +158,7 @@ private:
         return "-1";
     }
 
-    void removeFromDisk(const string& variableID){ //removes from file
+    void remove(const string& variableID){ //removes from file
         ifstream inFile("vm.txt");
         vector<pair<string, string>> diskData;
         string id, val;
