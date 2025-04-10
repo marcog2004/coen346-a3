@@ -113,9 +113,9 @@ public:
             cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
 
-                write(mainMemory[index].variableID, mainMemory[index].value); //write page from memory to disk
-                mainMemory[index] = { variableID, diskValue, clk, false }; //replace slot with page from disk
-                remove(variableID); //removes from disk
+                write(mainMemory[index].variableID, mainMemory[index].value);
+                mainMemory[index] = { variableID, diskValue, clk, false };
+                remove(variableID);
                 return diskValue;
         }
         return "-1"; //not found
@@ -128,7 +128,7 @@ private:
         string id, val;
         bool exists = false;
 
-        while (inFile >> id >> val){ //read all data, update if found
+        while (inFile >> id >> val){
             if (id == variableID){
                 val = value;
                 exists = true;
