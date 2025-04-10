@@ -10,6 +10,8 @@
 #include <map>
 #include <thread>
 #include <random>
+#include <algorithm>
+#include <condition_variable>
 
 using namespace std;
 
@@ -115,6 +117,60 @@ public:
         return "-1"; //not found
     }
 
+private:
+    void write(string variableID, string value){
+        ifstream inFile("vm.txt");
+        vector<pair<string, string>> diskData;
+        string id, val;
+        bool exists = false;
+
+        while (inFile >> id >> val){
+            if (id == variableID){
+                val = value;
+                exists = true;
+            }
+            diskData.emplace_back(id, val);
+        }
+        inFile.close();
+        
+        if (!exists){
+            ofstream outFile("vm.txt", ios::app);
+            outFile << variableID << " " << value << endl;
+            outFile.close();
+        }
+    }
+
+    string read(const string& variableID){
+        ifstream inFile("vm.txt");
+        string id, val;
+        while (inFile >> id>> val){
+            if (id == variableID){
+                inFile.close();
+                return val;
+            }
+        }
+        inFile.close();
+        return "-1";
+    }
+
+    void removeFromDisk(const string& variableID){
+        ifstream inFile("vm.txt");
+        vector<pair<string, string>> diskData;
+        string id, val;
+
+        while (inFile >> id >> val){
+            if (id != variableID){
+                diskData.emplace_back(id, val);
+            }
+        }
+        inFile.close();
+
+        ofstream outFile("vm.txt", ios::trunc);
+        for (const auto& [id, val] : diskData){
+            outFile << id << " " << val << endl;
+        }
+        outFile.close();
+    }
 };
 
 class Command { // command abstract class
