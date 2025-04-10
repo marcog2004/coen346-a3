@@ -108,15 +108,17 @@ public:
                     index = i;
                 }
             }
+
+            //logs the swap in the file and console
             output << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
 
             cout << "Clock: " << clk << ", Memory Manager, SWAP: Variable "
                 << diskPage.variableID << " with Variable " << mainMemory[index].variableID << endl;
 
-                write(mainMemory[index].variableID, mainMemory[index].value);
-                mainMemory[index] = { variableID, diskValue, clk, false };
-                remove(variableID);
+                write(mainMemory[index].variableID, mainMemory[index].value); //write page from memory to disk
+                mainMemory[index] = { variableID, diskValue, clk, false }; //replace the slot with page from disk
+                remove(variableID); //removes from disk
                 return diskValue;
         }
         return "-1"; //not found
@@ -129,7 +131,7 @@ private:
         string id, val;
         bool exists = false;
 
-        while (inFile >> id >> val){
+        while (inFile >> id >> val){ //reads all data, update if found
             if (id == variableID){
                 val = value;
                 exists = true;
@@ -139,7 +141,7 @@ private:
         inFile.close();
         
         if (!exists){
-            ofstream outFile("vm.txt", ios::app);
+            ofstream outFile("vm.txt", ios::app); //append new entry to disk
             outFile << variableID << " " << value << endl;
             outFile.close();
         }
@@ -148,7 +150,7 @@ private:
     string read(const string& variableID){ //reads from file
         ifstream inFile("vm.txt");
         string id, val;
-        while (inFile >> id>> val){
+        while (inFile >> id>> val){ //search for matching value and return
             if (id == variableID){
                 inFile.close();
                 return val;
@@ -163,14 +165,14 @@ private:
         vector<pair<string, string>> diskData;
         string id, val;
 
-        while (inFile >> id >> val){
+        while (inFile >> id >> val){ //find everything but what should be deleted
             if (id != variableID){
                 diskData.emplace_back(id, val);
             }
         }
         inFile.close();
 
-        ofstream outFile("vm.txt", ios::trunc);
+        ofstream outFile("vm.txt", ios::trunc); //rewrite the file without the entry
         for (const auto& [id, val] : diskData){
             outFile << id << " " << val << endl;
         }
